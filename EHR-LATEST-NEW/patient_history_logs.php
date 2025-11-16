@@ -1,0 +1,509 @@
+<?php
+echo '<link rel="icon" href="IMAGES/aurora.png" type="image/png">';
+?>
+
+<?php
+// Check if session is not already started before starting it
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+if (!isset($_SESSION['admin'])) {
+    header("Location: index.php");
+    exit();
+}
+require_once 'db.php';
+
+// Get filter parameters
+$patient_id = $_GET['patient_id'] ?? '';
+$action_type = $_GET['action_type'] ?? '';
+$date_from = $_GET['date_from'] ?? '';
+$date_to = $_GET['date_to'] ?? '';
+
+// Build query dynamically
+$query = "SELECT * FROM audit_trail WHERE patient_id IS NOT NULL";
+$params = [];
+$types = '';
+
+if (!empty($patient_id)) {
+    $query .= " AND patient_id = ?";
+    $params[] = $patient_id;
+    $types .= 's';
+}
+
+if (!empty($action_type)) {
+    $query .= " AND action_type = ?";
+    $params[] = $action_type;
+    $types .= 's';
+}
+
+if (!empty($date_from)) {
+    $query .= " AND action_date >= ?";
+    $params[] = $date_from . ' 00:00:00';
+    $types .= 's';
+}
+
+if (!empty($date_to)) {
+    $query .= " AND action_date <= ?";
+    $params[] = $date_to . ' 23:59:59';
+    $types .= 's';
+}
+
+$query .= " ORDER BY action_date DESC";
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient History Logs - EHR System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #10b981;
+            --secondary-color: #10b981;
+            --accent-color: #f59e0b;
+            --light-color: #ffffff;
+            --dark-color: #2c3e50;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+        }
+
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+
+        .navbar {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 1.25rem 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1030;
+            border-radius: 0 0 1rem 1rem;
+        }
+
+        .navbar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+            pointer-events: none;
+        }
+
+        .navbar:hover::before {
+            left: 100%;
+        }
+
+        .navbar-brand {
+            font-weight: 800;
+            color: white !important;
+            font-size: 1.8rem;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 2;
+            letter-spacing: -0.025em;
+        }
+
+        .navbar-brand:hover {
+            transform: scale(1.06) translateY(-2px);
+            text-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        .navbar-nav .nav-link {
+            font-weight: 600;
+            padding: 1rem 1.5rem;
+            border-radius: 0.625rem;
+            margin: 0 0.25rem;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 2;
+            color: rgba(255, 255, 255, 0.95) !important;
+            border: 1px solid transparent;
+        }
+
+        .navbar-nav .nav-link:hover,
+        .navbar-nav .nav-link.active {
+            color: white !important;
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .dropdown-toggle {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 2;
+        }
+
+        .dropdown-toggle:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-3px) scale(1.03);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+        }
+
+        .dropdown-toggle::after {
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            margin-left: 0.75rem;
+            border-top-color: rgba(255, 255, 255, 0.9);
+        }
+
+        .dropdown.locked .dropdown-toggle::after {
+            transform: rotate(180deg);
+        }
+
+        .dropdown-menu {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            border-radius: 1rem;
+            margin-top: 0.75rem;
+            padding: 0.75rem 0;
+            overflow: hidden;
+        }
+
+        .dropdown-item {
+            padding: 0.875rem 1.75rem;
+            margin: 0.25rem 0.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.3s ease;
+            color: #2c3e50;
+            font-weight: 500;
+        }
+
+        .dropdown-item:hover {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(34, 197, 94, 0.1));
+            color: var(--primary-color);
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+        }
+
+        .navbar-toggler {
+            border: none;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 0.625rem;
+            padding: 0.625rem;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            z-index: 2;
+        }
+
+        .navbar-toggler:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.08);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .navbar-toggler-icon {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.95%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2.5' d='m4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+        }
+
+        @media (max-width: 991.98px) {
+            .navbar-nav .nav-link {
+                padding: 0.75rem 1rem;
+                margin: 0.25rem 0;
+            }
+
+            .navbar-brand {
+                font-size: 1.5rem;
+            }
+        }
+
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+            margin-bottom: 20px;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-header {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+            border-radius: 10px 10px 0 0 !important;
+        }
+
+        .btn-primary {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+
+        .btn-primary:hover {
+            background-color: #2980b9;
+            border-color: #2980b9;
+        }
+
+        .btn-success {
+            background-color: var(--success-color);
+            border-color: var(--success-color);
+        }
+
+        .btn-danger {
+            background-color: var(--danger-color);
+            border-color: var(--danger-color);
+        }
+
+        .btn {
+            border-radius: 5px;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            transition: all 0.3s;
+        }
+
+        .table {
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .table thead {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .form-control {
+            border-radius: 5px;
+            border: 1px solid #ced4da;
+            padding: 0.5rem 0.75rem;
+        }
+
+        .form-control:focus {
+            box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+            border-color: var(--secondary-color);
+        }
+
+        .module-btn {
+            text-align: center;
+            border-radius: 10px;
+            background-color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s;
+            height: 100%;
+        }
+
+        .module-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+            background-color: var(--accent-color);
+            color: white;
+        }
+
+        .stats-card {
+            border-left: 5px solid var(--secondary-color);
+        }
+
+        .modal-header {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .modal-content {
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .input-group-text {
+            background-color: var(--light-color);
+            border: 1px solid #ced4da;
+        }
+
+        .log-insert {
+            background-color: #d4edda !important; /* green */
+        }
+
+        .log-update {
+            background-color: #fff3cd !important; /* yellowish */
+        }
+
+        .log-delete {
+            background-color: #f8d7da !important; /* red */
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="dashboard.php">
+                <img src="IMAGES/aurora.png" width="auto" height="70px" class="d-inline-block align-text-top me-2" alt="EHR Logo">
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="dashboard.php"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="patients.php"><i class="bi bi-people-fill me-1"></i>Patients</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="patient_history_logs.php"><i class="bi bi-clock-history me-1"></i>Patient History Logs</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-person-circle me-1"></i>Admin
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="logout.php"><i class="bi bi-box-arrow-right me-1"></i>Logout</a></li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-5 pt-4">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Patient History Logs</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Filter Form -->
+                        <form method="GET" class="mb-4">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label for="patient_id" class="form-label">Patient ID</label>
+                                    <input type="text" class="form-control" id="patient_id" name="patient_id" value="<?php echo htmlspecialchars($patient_id); ?>" placeholder="Enter Patient ID">
+                                </div>
+                                <div class="col-md-3">
+                                    <label for="action_type" class="form-label">Action Type</label>
+                                    <select class="form-select" id="action_type" name="action_type">
+                                        <option value="">All Actions</option>
+                                        <option value="INSERT" <?php echo $action_type == 'INSERT' ? 'selected' : ''; ?>>INSERT</option>
+                                        <option value="UPDATE" <?php echo $action_type == 'UPDATE' ? 'selected' : ''; ?>>UPDATE</option>
+                                        <option value="DELETE" <?php echo $action_type == 'DELETE' ? 'selected' : ''; ?>>DELETE</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="date_from" class="form-label">From Date</label>
+                                    <input type="date" class="form-control" id="date_from" name="date_from" value="<?php echo htmlspecialchars($date_from); ?>">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="date_to" class="form-label">To Date</label>
+                                    <input type="date" class="form-control" id="date_to" name="date_to" value="<?php echo htmlspecialchars($date_to); ?>">
+                                </div>
+                                <div class="col-md-2 d-flex align-items-end">
+                                    <button type="submit" class="btn btn-primary me-2">Filter</button>
+                                    <a href="patient_history_logs.php" class="btn btn-secondary">Clear</a>
+                                </div>
+                            </div>
+                        </form>
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Action Type</th>
+                                        <th>Table Name</th>
+                                        <th>Patient ID</th>
+                                        <th>Username</th>
+                                        <th>Date & Time</th>
+                                        <th>Old Values</th>
+                                        <th>New Values</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
+                                    // Function to format values as table with labels, 3 columns max per row
+                                    function format_values($json_values) {
+                                        if (!$json_values || $json_values === 'null') {
+                                            return 'N/A';
+                                        }
+                                        $values = json_decode($json_values, true);
+                                        if (!$values || !is_array($values)) {
+                                            return htmlspecialchars($json_values);
+                                        }
+                                        $html = '<table class="table table-sm table-borderless mb-0">';
+                                        $count = 0;
+                                        foreach ($values as $key => $val) {
+                                            if ($count % 3 == 0) {
+                                                if ($count > 0) $html .= '</tr>';
+                                                $html .= '<tr>';
+                                            }
+                                            $display_key = ucfirst(str_replace('_', ' ', $key));
+                                            $html .= '<td><strong>' . htmlspecialchars($display_key) . ':</strong> ' . htmlspecialchars($val ?: 'N/A') . '</td>';
+                                            $count++;
+                                        }
+                                        if ($count % 3 != 0) {
+                                            while ($count % 3 != 0) {
+                                                $html .= '<td></td>';
+                                                $count++;
+                                            }
+                                        }
+                                        $html .= '</tr></table>';
+                                        return $html;
+                                    }
+
+                                    // Query audit_trail for patient-related logs with filters
+                                    $stmt = $conn->prepare($query);
+                                    if (!empty($params)) {
+                                        $stmt->bind_param($types, ...$params);
+                                    }
+                                    $stmt->execute();
+                                    $result = $stmt->get_result();
+
+                                    while ($row = $result->fetch_assoc()) {
+                                        $action_class = '';
+                                        if ($row['action_type'] == 'INSERT') {
+                                            $action_class = 'log-insert';
+                                        } elseif ($row['action_type'] == 'UPDATE') {
+                                            $action_class = 'log-update';
+                                        } elseif ($row['action_type'] == 'DELETE') {
+                                            $action_class = 'log-delete';
+                                        }
+
+                                        echo "<tr class='$action_class'>";
+                                        echo "<td>" . htmlspecialchars($row['action_type']) . "</td>";
+                                        echo "<td>" . htmlspecialchars($row['table_name']) . "</td>";
+                                        echo "<td>" . htmlspecialchars($row['patient_id']) . "</td>";
+                                        echo "<td>" . htmlspecialchars($row['username']) . "</td>";
+                                        echo "<td>" . htmlspecialchars($row['action_date']) . "</td>";
+                                        echo "<td>" . format_values($row['old_values']) . "</td>";
+                                        echo "<td>" . format_values($row['new_values']) . "</td>";
+                                        echo "</tr>";
+                                    }
+
+                                    $stmt->close();
+                                    ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
