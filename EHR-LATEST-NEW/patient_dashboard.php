@@ -1,8 +1,5 @@
 <?php
-echo '<link rel="icon" href="IMAGES/aurora.png" type="image/png">';
-?>
-<?php
-// Start session and check authentication first
+// Start session and check authentication FIRST
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
@@ -14,14 +11,12 @@ if (!isset($_SESSION['admin'])) {
 
 // Include required files AFTER session check
 include "db.php";
-include "audit_trail.php";
+include "audit_trail.php";   
 
 // Function to sanitize input
 function sanitize_input($conn, $data) {
     return mysqli_real_escape_string($conn, trim($data));
 }
-
-$page_title = "Patient Dashboard";
 
 // Get patient ID from URL
 $patient_id = intval($_GET['patient_id'] ?? 0);
@@ -150,6 +145,7 @@ if (isset($_GET['get_surgery'])) {
     $stmt->execute();
     $result = $stmt->get_result();
     if ($row = $result->fetch_assoc()) {
+        header('Content-Type: application/json');
         echo json_encode($row);
     }
     $stmt->close();
@@ -236,6 +232,7 @@ if (isset($_GET['get_allergy'])) {
     $stmt->execute();
     $result = $stmt->get_result();
     if ($row = $result->fetch_assoc()) {
+        header('Content-Type: application/json');
         echo json_encode($row);
     }
     $stmt->close();
@@ -308,7 +305,7 @@ if (isset($_GET['delete_family_history'])) {
     $stmt = $conn->prepare("DELETE FROM family_history WHERE id=? AND patient_id=?");
     $stmt->bind_param("ii", $id, $patient_id);
     if ($stmt->execute()) {
-        header("Location: patient_dashboard.php?patient_id=$patient_id&section=family_history");
+        header("Location:patient_dashboard.php?patient_id=$patient_id&section=family_history");
         exit();
     }
     $stmt->close();
@@ -321,6 +318,7 @@ if (isset($_GET['get_family_history'])) {
     $stmt->execute();
     $result = $stmt->get_result();
     if ($row = $result->fetch_assoc()) {
+        header('Content-Type: application/json');
         echo json_encode($row);
     }
     $stmt->close();
@@ -405,6 +403,7 @@ if (isset($_GET['get_lifestyle'])) {
     $stmt->execute();
     $result = $stmt->get_result();
     if ($row = $result->fetch_assoc()) {
+        header('Content-Type: application/json');
         echo json_encode($row);
     }
     $stmt->close();
@@ -457,7 +456,7 @@ if (isset($_POST['add_vitals'])) {
     $pain_scale = $_POST['pain_scale'] ?? "";
     $general_appearance = $_POST['general_appearance'] ?? "";
     $date = $_POST['date'] ?: date("Y-m-d");
-    $time = $_POST['time_taken'] ?? date('H:i:s');
+    $time = $_POST['time'] ?? date('H:i:s');
 
     // 🧮 Compute BMI
     $bmi_res = null;
@@ -518,6 +517,7 @@ if (isset($_GET['get_vital'])) {
     $stmt->execute();
     $result = $stmt->get_result();
     if ($row = $result->fetch_assoc()) {
+        header('Content-Type: application/json');
         echo json_encode($row);
     }
     $stmt->close();
@@ -551,7 +551,7 @@ if (isset($_POST['update_vitals'])) {
 
     else {
         $stmt = $conn->prepare("UPDATE vitals SET recorded_by=?, bp=?, respiratory_rate=?, hr=?, temp=?, height=?, weight=?, oxygen_saturation=?, pain_scale=?, general_appearance=?, date_taken=?, time_taken=? WHERE id=? AND patient_id=?");
-        $stmt->bind_param("sssddddiisssii",$recorded_by, $bp, $respiratory_rate, $hr, $temp, $height, $weight, $oxygen_saturation, $pain_scale, $general_appearance, $date, $time, $vid, $patient_id);
+        $stmt->bind_param("sssssssiisssii", $recorded_by, $bp, $respiratory_rate, $hr, $temp, $height, $weight, $oxygen_saturation, $pain_scale, $general_appearance, $date, $time, $vid, $patient_id);
         if ($stmt->execute()) {
             $msg = "Vitals updated.";
         } else {
@@ -646,7 +646,7 @@ if (isset($_POST['add_med'])) {
         ");
 
         $stmt->bind_param(
-            "isssssssssssssssis",
+            "issssssssssssssssis",
             $patient_id, $med, $indication, $prescriber, $dose, $route, $start, $notes, $status,
             $patient_instructions, $pharmacy_instructions, $iv_date, $iv_time, $iv_fluid, $flow_rate,
             $time_started, $no_hours, $time_ended
@@ -760,6 +760,7 @@ if (isset($_GET['get_med'])) {
     $stmt->execute();
     $result = $stmt->get_result();
     if ($row = $result->fetch_assoc()) {
+        header('Content-Type: application/json');
         echo json_encode($row);
     }
     $stmt->close();
@@ -972,6 +973,7 @@ if (isset($_GET['get_diagnostic'])) {
     $stmt->execute();
     $result = $stmt->get_result();
     if ($row = $result->fetch_assoc()) {
+        header('Content-Type: application/json');
         echo json_encode($row);
     }
     $stmt->close();
@@ -1112,6 +1114,7 @@ if (isset($_GET['get_treatment_plan'])) {
     $stmt->execute();
     $result = $stmt->get_result();
     if ($row = $result->fetch_assoc()) {
+        header('Content-Type: application/json');
         echo json_encode($row);
     }
     $stmt->close();
@@ -1129,16 +1132,17 @@ if (isset($_POST['add_lab'])) {
     $reference_range = sanitize_input($conn, $_POST['reference_range'] ?? "");
     $order_by = sanitize_input($conn, $_POST['order_by'] ?? "");
     $collected_by = sanitize_input($conn, $_POST['collected_by'] ?? "");
-    $labarotary_facility = sanitize_input($conn, $_POST['labarotary_facility'] ?? "");
+    $laboratory_facility = sanitize_input($conn, $_POST['laboratory_facility'] ?? "");
     $clinical_interpretation = $_POST['clinical_interpretation'] ?? "";
     $date = $_POST['date'] ?: date("Y-m-d H:i:s");
 
     // Validate date format if provided
     if (!empty($_POST['date']) && !preg_match('/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2}:\d{2})?$/', $date)) {
+        $error = "Invalid date format. Use YYYY-MM-DD or YYYY-MM-DD HH:MM:SS.";
     }
     else {
-        $stmt = $conn->prepare("INSERT INTO lab_results (patient_id, test_name, test_result, test_category, test_code, result_status, units, reference_range, order_by, collected_by, labarotary_facility, clinical_interpretation, date_taken) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
-        $stmt->bind_param("issssssssssss", $patient_id, $test, $result, $test_category, $test_code, $result_status, $units, $reference_range, $order_by, $collected_by, $labarotary_facility, $clinical_interpretation, $date);
+        $stmt = $conn->prepare("INSERT INTO lab_results (patient_id, test_name, test_result, test_category, test_code, result_status, units, reference_range, order_by, collected_by, laboratory_facility, clinical_interpretation, date_taken) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
+        $stmt->bind_param("issssssssssss", $patient_id, $test, $result, $test_category, $test_code, $result_status, $units, $reference_range, $order_by, $collected_by, $laboratory_facility, $clinical_interpretation, $date);
         if ($stmt->execute()) {
             $msg = "Lab result added.";
             // Refresh medical_data for lab_results
@@ -1180,14 +1184,14 @@ if (isset($_POST['update_lab'])) {
     $lid = intval($_POST['lab_id']);
     $test = sanitize_input($conn, $_POST['test_name'] ?? "");
     $result = sanitize_input($conn, $_POST['result'] ?? "");
-    $test_result = sanitize_input($conn, $_POST['test_category'] ?? "");
+    $test_category = sanitize_input($conn, $_POST['test_category'] ?? "");
     $test_code = sanitize_input($conn, $_POST['test_code'] ?? "");
     $result_status = sanitize_input($conn, $_POST['result_status'] ?? "");
     $units = sanitize_input($conn, $_POST['units'] ?? "");
     $reference_range = sanitize_input($conn, $_POST['reference_range'] ?? "");
     $order_by = sanitize_input($conn, $_POST['order_by'] ?? "");
     $collected_by = sanitize_input($conn, $_POST['collected_by'] ?? "");
-    $labarotary_facility = sanitize_input($conn, $_POST['labarotary_facility'] ?? "");
+    $laboratory_facility = sanitize_input($conn, $_POST['laboratory_facility'] ?? "");
     $date = $_POST['date'] ?: date("Y-m-d H:i:s");
 
     // Validate date format if provided
@@ -1195,8 +1199,8 @@ if (isset($_POST['update_lab'])) {
         $error = "Invalid date format. Use YYYY-MM-DD or YYYY-MM-DD HH:MM:SS.";
     }
     else {
-        $stmt = $conn->prepare("UPDATE lab_results SET test_name=?, test_category=?, test_code=?, test_result=?, result_status=?, units=?, reference_range=?, order_by=?, collected_by=?, labarotary_facility=?, date_taken=? WHERE id=? AND patient_id=?");
-        $stmt->bind_param("sssssssssssii", $test, $test_category, $test_code, $result, $result_status, $units, $reference_range, $order_by, $collected_by, $labarotary_facility, $date, $lid, $patient_id);
+        $stmt = $conn->prepare("UPDATE lab_results SET test_name=?, test_category=?, test_code=?, test_result=?, result_status=?, units=?, reference_range=?, order_by=?, collected_by=?, laboratory_facility=?, date_taken=? WHERE id=? AND patient_id=?");
+        $stmt->bind_param("sssssssssssii", $test, $test_category, $test_code, $result, $result_status, $units, $reference_range, $order_by, $collected_by, $laboratory_facility, $date, $lid, $patient_id);
         if ($stmt->execute()) {
             $msg = "Lab result updated.";
         } else {
@@ -1223,6 +1227,7 @@ if (isset($_GET['get_lab'])) {
     $stmt->execute();
     $result = $stmt->get_result();
     if ($row = $result->fetch_assoc()) {
+        header('Content-Type: application/json');
         echo json_encode($row);
     }
     $stmt->close();
@@ -1317,6 +1322,7 @@ if (isset($_GET['get_medical_history'])) {
     $stmt->execute();
     $result = $stmt->get_result();
     if ($row = $result->fetch_assoc()) {
+        header('Content-Type: application/json');
         echo json_encode($row);
     }
     $stmt->close();
@@ -1419,13 +1425,19 @@ if (isset($_POST['update_physical_assessment'])) {
 
 if (isset($_GET['get_physical_assessment'])) {
     $id = intval($_GET['get_physical_assessment']);
+    error_log("DEBUG: Fetching physical assessment ID: $id for patient: $patient_id");
     $stmt = $conn->prepare("SELECT * FROM physical_assessments WHERE id=? AND patient_id=?");
     $stmt->bind_param("ii", $id, $patient_id);
     $stmt->execute();
     $result = $stmt->get_result();
     if ($row = $result->fetch_assoc()) {
-        header("Location: patient_dashboard.php?patient_id=$patient_id&section=physical_assessments");
+        error_log("DEBUG: Found physical assessment data: " . json_encode($row));
+        header('Content-Type: application/json');
         echo json_encode($row);
+    } else {
+        error_log("DEBUG: No physical assessment found for ID: $id and patient: $patient_id");
+        header('Content-Type: application/json');
+        echo json_encode([]);
     }
     $stmt->close();
     exit;
@@ -2203,6 +2215,27 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                             </div>
                         </div>
 
+                        <!-- Search Form -->
+                        <div class="card mb-4">
+                            <div class="card-body">
+                                <form method="get" class="row g-2">
+                                    <input type="hidden" name="patient_id" value="<?php echo $patient_id; ?>">
+                                    <div class="col-md-8">
+                                        <input type="text" name="search" class="form-control" placeholder="Search across medical records..." value="<?php echo htmlspecialchars($search); ?>">
+                                    </div>
+                                    <div class="col-md-4">
+                                        <button type="submit" class="btn btn-primary w-100">Search</button>
+                                        <?php if (!empty($search)): ?>
+                                            <a href="?patient_id=<?php echo $patient_id; ?>" class="btn btn-secondary w-100 mt-2">Clear Search</a>
+                                        <?php endif; ?>
+                                    </div>
+                                </form>
+                                <?php if (!empty($search)): ?>
+                                    <p class="mt-2">Search results for: <strong><?php echo htmlspecialchars($search); ?></strong></p>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+
                         <!-- Medical Records Overview -->
                         <div class="row">
                             <?php
@@ -2317,12 +2350,15 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                             <td><?php echo htmlspecialchars($r['procedure_name']); ?></td>
                                             <td><?php echo htmlspecialchars($r['date_surgery'] ?? 'N/A'); ?></td>
                                             <td><?php echo htmlspecialchars($r['hospital'] ?? 'N/A'); ?></td>
-                                            <td><?php echo htmlspecialchars($r['surgeon'] ?? 'N/A'); ?></td>
-                                            <td class="action-btn">
-                                                <a class="btn btn-sm btn-danger btn-delete" href="?delete_surgery=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=surgeries" onclick="return confirm('Delete?')">
-                                                    <i class="bi bi-trash"></i> Delete
-                                                </a>
-                                            </td>
+            <td><?php echo htmlspecialchars($r['surgeon'] ?? 'N/A'); ?></td>
+            <td class="action-btn">
+                <button type="button" class="btn btn-sm btn-warning mb-1" onclick="editSurgery(<?php echo $r['id']; ?>)">
+                    <i class="bi bi-pencil-square"></i> Edit
+                </button>
+                <a class="btn btn-sm btn-danger btn-delete" href="?delete_surgery=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=surgeries" onclick="return confirm('Delete?')">
+                    <i class="bi bi-trash"></i> Delete
+                </a>
+            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -2386,12 +2422,15 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                                 echo $r['severity'] == 'Mild' ? 'success' : 
                                                     ($r['severity'] == 'Moderate' ? 'warning' : 'danger'); 
                                             ?>"><?php echo htmlspecialchars($r['severity']); ?></span></td>
-                                            <td><?php echo htmlspecialchars($r['date_identified'] ?? 'N/A'); ?></td>
-                                            <td class="action-btn">
-                                                <a class="btn btn-sm btn-danger btn-delete" href="?delete_allergy=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=allergies" onclick="return confirm('Delete?')">
-                                                    <i class="bi bi-trash"></i> Delete
-                                                </a>
-                                            </td>
+            <td><?php echo htmlspecialchars($r['date_identified'] ?? 'N/A'); ?></td>
+            <td class="action-btn">
+                <button type="button" class="btn btn-sm btn-warning mb-1" onclick="editAllergy(<?php echo $r['id']; ?>)">
+                    <i class="bi bi-pencil-square"></i> Edit
+                </button>
+                <a class="btn btn-sm btn-danger btn-delete" href="?delete_allergy=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=allergies" onclick="return confirm('Delete?')">
+                    <i class="bi bi-trash"></i> Delete
+                </a>
+            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -2447,12 +2486,15 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                             <td><?php echo htmlspecialchars($r['relationship']); ?></td>
                                             <td><?php echo htmlspecialchars($r['condition']); ?></td>
                                             <td><?php echo htmlspecialchars($r['age_at_diagnosis'] ?? 'N/A'); ?></td>
-                                            <td><?php echo htmlspecialchars($r['current_status'] ?? 'N/A'); ?></td>
-                                            <td class="action-btn">
-                                                <a class="btn btn-sm btn-danger btn-delete" href="?delete_family_history=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=family_history" onclick="return confirm('Delete?')">
-                                                    <i class="bi bi-trash"></i> Delete
-                                                </a>
-                                            </td>
+            <td><?php echo htmlspecialchars($r['current_status'] ?? 'N/A'); ?></td>
+            <td class="action-btn">
+                <button type="button" class="btn btn-sm btn-warning mb-1" onclick="editFamilyHistory(<?php echo $r['id']; ?>)">
+                    <i class="bi bi-pencil-square"></i> Edit
+                </button>
+                <a class="btn btn-sm btn-danger btn-delete" href="?delete_family_history=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=family_history" onclick="return confirm('Delete?')">
+                    <i class="bi bi-trash"></i> Delete
+                </a>
+            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -2529,12 +2571,15 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                             <td><?php echo htmlspecialchars($r['smoking_status'] ?? 'N/A'); ?></td>
                                             <td><?php echo htmlspecialchars($r['alcohol_use'] ?? 'N/A'); ?></td>
                                             <td><?php echo htmlspecialchars($r['exercise'] ?? 'N/A'); ?></td>
-                                            <td><?php echo htmlspecialchars($r['diet'] ?? 'N/A'); ?></td>
-                                            <td class="action-btn">
-                                                <a class="btn btn-sm btn-danger btn-delete" href="?delete_lifestyle=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=lifestyle_info" onclick="return confirm('Delete?')">
-                                                    <i class="bi bi-trash"></i> Delete
-                                                </a>
-                                            </td>
+            <td><?php echo htmlspecialchars($r['diet'] ?? 'N/A'); ?></td>
+            <td class="action-btn">
+                <button type="button" class="btn btn-sm btn-warning mb-1" onclick="editLifestyle(<?php echo $r['id']; ?>)">
+                    <i class="bi bi-pencil-square"></i> Edit
+                </button>
+                <a class="btn btn-sm btn-danger btn-delete" href="?delete_lifestyle=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=lifestyle_info" onclick="return confirm('Delete?')">
+                    <i class="bi bi-trash"></i> Delete
+                </a>
+            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -2604,12 +2649,15 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                             <td><?php echo htmlspecialchars($r['pain_scale']); ?></td>
                                             <td><?php echo htmlspecialchars(substr($r['date_taken'], 0, 10)); ?></td>
                                             <td><?php echo htmlspecialchars(substr($r['time_taken'], 0, 10)); ?></td>
-                                            <td><?php echo htmlspecialchars($r['BMI']); ?></td>
-                                            <td>
-                                                <a class="btn btn-sm btn-danger" href="?delete_vital=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=vitals" onclick="return confirm('Delete?')">
-                                                    <i class="bi bi-trash"></i> Delete
-                                                </a>
-                                            </td>
+            <td><?php echo htmlspecialchars($r['BMI']); ?></td>
+            <td>
+                <button type="button" class="btn btn-sm btn-warning mb-1" onclick="editVitals(<?php echo $r['id']; ?>)">
+                    <i class="bi bi-pencil-square"></i> Edit
+                </button>
+                <a class="btn btn-sm btn-danger" href="?delete_vital=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=vitals" onclick="return confirm('Delete?')">
+                    <i class="bi bi-trash"></i> Delete
+                </a>
+            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -2833,12 +2881,15 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                             <td><?php echo htmlspecialchars($r['medication']); ?></td>
                                             <td><?php echo htmlspecialchars($r['dose']); ?></td>
                                             <td><?php echo htmlspecialchars(date('Y-m-d', strtotime($r['start_date']))); ?></td>
-                                            <td><?php echo htmlspecialchars($r['time_ended']); ?></td>
-                                            <td>
-                                                <a class="btn btn-sm btn-danger" href="?delete_med=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=medications" onclick="return confirm('Delete?')">
-                                                    <i class="bi bi-trash"></i> Delete
-                                                </a>
-                                            </td>
+            <td><?php echo htmlspecialchars($r['time_ended']); ?></td>
+            <td>
+                <button type="button" class="btn btn-sm btn-warning mb-1" onclick="editMedications(<?php echo $r['id']; ?>)">
+                    <i class="bi bi-pencil-square"></i> Edit
+                </button>
+                <a class="btn btn-sm btn-danger" href="?delete_med=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=medications" onclick="return confirm('Delete?')">
+                    <i class="bi bi-trash"></i> Delete
+                </a>
+            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -2899,9 +2950,7 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                             <td><?php echo htmlspecialchars(substr($r['time_written'], 0, 10)); ?></td>
                                             <td>
                                                  <!-- Edit Button -->
-                                                <button 
-                                                    class="btn btn-sm btn-warning mb-1" 
-                                                    onclick="editNote(<?php echo $r['id']; ?>)">
+                                                <button class="btn btn-sm btn-warning mb-1" type="button" onclick="editProgressNotes(<?php echo $r['id']; ?>)">
                                                     <i class="bi bi-pencil-square"></i> Edit
                                                 </button>
 
@@ -2933,11 +2982,11 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                             <option value="X-RAY" <?php if (($_POST['study_type'] ?? '') == 'X-RAY') echo 'selected'; ?>>X-RAY</option>
                                             <option value="CT SCAN" <?php if (($_POST['study_type'] ?? '') == 'CT SCAN') echo 'selected'; ?>>CT SCAN</option>
                                             <option value="MRI" <?php if (($_POST['study_type'] ?? '') == 'MRI') echo 'selected'; ?>>MRI</option>
-                                            <option value="Utrasound" <?php if (($_POST['study_type'] ?? '') == 'Utrasound') echo 'selected'; ?>>Utrasound</option>
+                                            <option value="Ultrasound" <?php if (($_POST['study_type'] ?? '') == 'Ultrasound') echo 'selected'; ?>>Ultrasound</option>
                                             <option value="Nuclear Medicine" <?php if (($_POST['study_type'] ?? '') == 'Nuclear Medicine') echo 'selected'; ?>>Nuclear Medicine</option>
                                             <option value="PET Scan" <?php if (($_POST['study_type'] ?? '') == 'PET Scan') echo 'selected'; ?>>PET Scan</option>
                                             <option value="Mammography" <?php if (($_POST['study_type'] ?? '') == 'Mammography') echo 'selected'; ?>>Mammography</option>
-                                            <option value="Fluroscopy" <?php if (($_POST['study_type'] ?? '') == 'Fluroscopy') echo 'selected'; ?>>Fluroscopy</option>
+                                            <option value="Fluoroscopy" <?php if (($_POST['study_type'] ?? '') == 'Fluoroscopy') echo 'selected'; ?>>Fluoroscopy</option>
                                             <option value="other" <?php if (($_POST['study_type'] ?? '') == 'other') echo 'selected'; ?>>Other</option>
                                         </select>
                                         <input type="text" class="form-control mt-1" name="custom_study_type" id="custom_study_type" placeholder="Specify Study Type" style="display: none;" value="<?php echo htmlspecialchars($_POST['custom_study_type'] ?? ''); ?>">
@@ -2985,12 +3034,15 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                         <tr>
                                             <td><?php echo htmlspecialchars($r['study_type']); ?></td>
                                             <td style="white-space: pre-wrap;"><?php echo htmlspecialchars($r['body_part_region']); ?></td>
-                                            <td><?php echo htmlspecialchars($r['date_diagnosed']); ?></td>
-                                            <td>
-                                                <a class="btn btn-sm btn-danger" href="?delete_diagnostic=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=diagnostics" onclick="return confirm('Delete?')">
-                                                    <i class="bi bi-trash"></i> Delete
-                                                </a>
-                                            </td>
+            <td><?php echo htmlspecialchars($r['date_diagnosed']); ?></td>
+            <td>
+                <button type="button" class="btn btn-sm btn-warning mb-1" onclick="editDiagnostics(<?php echo $r['id']; ?>)">
+                    <i class="bi bi-pencil-square"></i> Edit
+                </button>
+                <a class="btn btn-sm btn-danger" href="?delete_diagnostic=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=diagnostics" onclick="return confirm('Delete?')">
+                    <i class="bi bi-trash"></i> Delete
+                </a>
+            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -3108,12 +3160,15 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                             <td><?php echo htmlspecialchars($r['date_started']); ?></td>
                                             <td><?php echo htmlspecialchars($r['date_ended']); ?></td>
                                             <td><?php echo htmlspecialchars($r['special_instructions']); ?></td>
-                                            <td><?php echo htmlspecialchars($r['patient_education_provided']); ?></td>
-                                            <td class="action-btn">
-                                                <a class="btn btn-sm btn-danger btn-delete" href="?delete_treatment_plan=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=treatment_plans" onclick="return confirm('Delete?')">
-                                                    <i class="bi bi-trash"></i> Delete
-                                                </a>
-                                            </td>
+            <td><?php echo htmlspecialchars($r['patient_education_provided']); ?></td>
+            <td class="action-btn">
+                <button type="button" class="btn btn-sm btn-warning mb-1" onclick="editTreatmentPlans(<?php echo $r['id']; ?>)">
+                    <i class="bi bi-pencil-square"></i> Edit
+                </button>
+                <a class="btn btn-sm btn-danger btn-delete" href="?delete_treatment_plan=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=treatment_plans" onclick="return confirm('Delete?')">
+                    <i class="bi bi-trash"></i> Delete
+                </a>
+            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -3135,13 +3190,13 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                 <div class="col-md-4"> 
                                     <select class="form-control" name="test_category" id="test_category" required>
                                         <option value="">Select Test Category</option>
-                                        <option value="Hematology" <?php if (($_POST['test_category'] ?? '') == 'Hematologyr') echo 'selected'; ?>>Hematology</option>
+                                        <option value="Hematology" <?php if (($_POST['test_category'] ?? '') == 'Hematology') echo 'selected'; ?>>Hematology</option>
                                         <option value="Chemistry" <?php if (($_POST['test_category'] ?? '') == 'Chemistry') echo 'selected'; ?>>Chemistry</option>
                                         <option value="Microbiology" <?php if (($_POST['test_category'] ?? '') == 'Microbiology') echo 'selected'; ?>>Microbiology</option>
                                         <option value="Immunology" <?php if (($_POST['test_category'] ?? '') == 'Immunology') echo 'selected'; ?>>Immunology</option>
                                         <option value="Pathology" <?php if (($_POST['test_category'] ?? '') == 'Pathology') echo 'selected'; ?>>Pathology</option>
                                         <option value="Genetics" <?php if (($_POST['test_category'] ?? '') == 'Genetics') echo 'selected'; ?>>Genetics</option>
-                                        <option value="Endrinology" <?php if (($_POST['test_category'] ?? '') == 'Endrinology') echo 'selected'; ?>>Endrinology</option>
+                                        <option value="Endocrinology" <?php if (($_POST['test_category'] ?? '') == 'Endocrinology') echo 'selected'; ?>>Endocrinology</option>
                                         <option value="other" <?php if (($_POST['test_category'] ?? '') == 'other') echo 'selected'; ?>>other</option>
                                     </select>
                                     <input type="text" class="form-control mt-1" name="custom_category" id="custom_category" placeholder="Specify Category" style="display: none;" value="<?php echo htmlspecialchars($_POST['custom_category'] ?? ''); ?>">
@@ -3151,12 +3206,12 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                 <div class="col-md-4"> 
                                     <select class="form-control" name="result_status" id="result_status" required>
                                         <option value="">Select Result Status</option>
-                                        <option value="Normal" <?php if (($_POST['result_status'] ?? '') == 'Hematologyr') echo 'selected'; ?>>Normal</option>
-                                        <option value="High" <?php if (($_POST['result_status'] ?? '') == 'Chemistry') echo 'selected'; ?>>High</option>
-                                        <option value="Low" <?php if (($_POST['result_status'] ?? '') == 'Microbiology') echo 'selected'; ?>>Low</option>
-                                        <option value="Critical High" <?php if (($_POST['result_status'] ?? '') == 'Immunology') echo 'selected'; ?>>Critical High</option>
-                                        <option value="Critical Low" <?php if (($_POST['result_status'] ?? '') == 'Pathology') echo 'selected'; ?>>Critical Low</option>
-                                        <option value="Abnormal" <?php if (($_POST['result_status'] ?? '') == 'Pathology') echo 'selected'; ?>>Abnormal</option>
+                                        <option value="Normal" <?php if (($_POST['result_status'] ?? '') == 'Normal') echo 'selected'; ?>>Normal</option>
+                                        <option value="High" <?php if (($_POST['result_status'] ?? '') == 'High') echo 'selected'; ?>>High</option>
+                                        <option value="Low" <?php if (($_POST['result_status'] ?? '') == 'Low') echo 'selected'; ?>>Low</option>
+                                        <option value="Critical High" <?php if (($_POST['result_status'] ?? '') == 'Critical High') echo 'selected'; ?>>Critical High</option>
+                                        <option value="Critical Low" <?php if (($_POST['result_status'] ?? '') == 'Critical Low') echo 'selected'; ?>>Critical Low</option>
+                                        <option value="Abnormal" <?php if (($_POST['result_status'] ?? '') == 'Abnormal') echo 'selected'; ?>>Abnormal</option>
                                     </select>
                                 </div>
                                 <div class="col-md-4"><input class="form-control" name="units" placeholder="Units (e.g., mg/dL)" value="<?php echo htmlspecialchars($_POST['units'] ?? ''); ?>" required></div>
@@ -3192,12 +3247,15 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                             <td><?php echo htmlspecialchars($r['test_category']); ?></td>
                                             <td><?php echo htmlspecialchars($r['test_code']); ?></td>
                                             <td><?php echo htmlspecialchars($r['test_result']); ?></td>
-                                            <td><?php echo htmlspecialchars(substr($r['date_taken'], 0, 10)); ?></td>
-                                            <td>
-                                                <a class="btn btn-sm btn-danger" href="?delete_lab=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=lab_results" onclick="return confirm('Delete?')">
-                                                    <i class="bi bi-trash"></i> Delete
-                                                </a>
-                                            </td>
+            <td><?php echo htmlspecialchars(substr($r['date_taken'], 0, 10)); ?></td>
+            <td>
+                <button type="button" class="btn btn-sm btn-warning mb-1" onclick="editLabResults(<?php echo $r['id']; ?>)">
+                    <i class="bi bi-pencil-square"></i> Edit
+                </button>
+                <a class="btn btn-sm btn-danger" href="?delete_lab=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=lab_results" onclick="return confirm('Delete?')">
+                    <i class="bi bi-trash"></i> Delete
+                </a>
+            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -3257,12 +3315,15 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                                 ?>"><?php echo htmlspecialchars($r['status']); ?></span>
                                             </td>
                                             <td><?php echo htmlspecialchars($r['notes']); ?></td>
-                                            <td><?php echo htmlspecialchars($r['date_recorded']); ?></td>
-                                            <td>
-                                                <a class="btn btn-sm btn-danger" href="?delete_medical_history=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=medical_history" onclick="return confirm('Delete?')">
-                                                    <i class="bi bi-trash"></i> Delete
-                                                </a>
-                                            </td>
+            <td><?php echo htmlspecialchars($r['date_recorded']); ?></td>
+            <td>
+                <button type="button" class="btn btn-sm btn-warning mb-1" onclick="editMedicalHistory(<?php echo $r['id']; ?>)">
+                    <i class="bi bi-pencil-square"></i> Edit
+                </button>
+                <a class="btn btn-sm btn-danger" href="?delete_medical_history=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=medical_history" onclick="return confirm('Delete?')">
+                    <i class="bi bi-trash"></i> Delete
+                </a>
+            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -3317,12 +3378,15 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
                                             <td><?php echo htmlspecialchars($r['head_and_neck']); ?></td>
                                             <td><?php echo htmlspecialchars($r['cardiovascular']); ?></td>
                                             <td><?php echo htmlspecialchars($r['respiratory']); ?></td>
-                                            <td><?php echo htmlspecialchars($r['date_assessed']); ?></td>
-                                            <td>
-                                                <a class="btn btn-sm btn-danger" href="?delete_physical_assessment=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=physical_assessment" onclick="return confirm('Delete?')">
-                                                    <i class="bi bi-trash"></i> Delete
-                                                </a>
-                                            </td>
+            <td><?php echo htmlspecialchars($r['date_assessed']); ?></td>
+            <td>
+                <button type="button" class="btn btn-sm btn-warning mb-1" onclick="editPhysicalAssessment(<?php echo $r['id']; ?>)">
+                    <i class="bi bi-pencil-square"></i> Edit
+                </button>
+                <a class="btn btn-sm btn-danger" href="?delete_physical_assessment=<?php echo $r['id']; ?>&patient_id=<?php echo $patient_id; ?>&section=physical_assessment" onclick="return confirm('Delete?')">
+                    <i class="bi bi-trash"></i> Delete
+                </a>
+            </td>
                                         </tr>
                                     <?php endforeach; ?>
                                 </tbody>
@@ -3337,12 +3401,12 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
     </div>
 </div>
 
+<!-- Replace your entire script section at the bottom with this -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script>
     const patient_id = <?php echo $patient_id; ?>;
 
     function showSection(section) {
-        // Hide all sections
         const sections = ['default-content', 'vitals-content', 'medications-content', 'progress_notes-content', 
                          'diagnostics-content', 'treatment_plans-content', 'lab_results-content', 
                          'medical_history-content', 'physical_assessment-content', 'surgeries-content',
@@ -3353,7 +3417,6 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
             if (elem) elem.style.display = 'none';
         });
         
-        // Show selected section
         const sectionMap = {
             'default': 'default-content',
             'vitals': 'vitals-content',
@@ -3374,333 +3437,20 @@ if (isset($_POST['add_lifestyle']) || isset($_POST['update_lifestyle'])) $submit
         const elem = document.getElementById(contentId);
         if (elem) elem.style.display = 'block';
         
-        // Update URL
         const url = section === 'default' 
             ? '?patient_id=' + patient_id 
             : '?patient_id=' + patient_id + '&section=' + section;
         history.pushState(null, '', url);
     }
 
-// Edit Medications
-function editMed(id) {
-    fetch('?get_med=' + id + '&patient_id=' + patient_id)
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('med_id').value = data.id;
-            document.getElementById('medication_edit').value = data.medication || '';
-            document.getElementById('indication_edit').value = data.indication || '';
-            document.getElementById('prescriber_edit').value = data.prescriber || '';
-            document.getElementById('dose_edit').value = data.dose || '';
-            
-            // Handle route dropdown and custom route
-            const routeSelect = document.getElementById('route_edit_select');
-            if (data.route && ['PO', 'IV', 'IM', 'SC', 'Topical', 'Inhaled', 'PR', 'SL'].includes(data.route)) {
-                routeSelect.value = data.route;
-                document.getElementById('custom_route_edit').style.display = 'none';
-            } else {
-                routeSelect.value = 'other';
-                document.getElementById('custom_route_edit').style.display = 'block';
-                document.getElementById('custom_route_edit').value = data.route || '';
-            }
-            
-            document.getElementById('status_edit').value = data.status || '';
-            document.getElementById('start_date_edit').value = data.start_date ? data.start_date.substring(0, 10) : '';
-            document.getElementById('notes_edit').value = data.notes || '';
-            document.getElementById('patient_instructions_edit').value = data.patient_instructions || '';
-            document.getElementById('pharmacy_instructions_edit').value = data.pharmacy_instructions || '';
-            
-            new bootstrap.Modal(document.getElementById('editMedicationsModal')).show();
-        })
-        .catch(error => console.error('Error:', error));
-}
-
-// Edit Progress Notes
-function editNote(id) {
-    fetch('?get_note=' + id + '&patient_id=' + patient_id)
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('note_id').value = data.id;
-            document.getElementById('focus_edit').value = data.focus || ''; 
-            document.getElementById('note_edit').value = data.note || '';
-            document.getElementById('author_edit').value = data.author || '';
-            document.getElementById('date_note_edit').value = data.date_written ? data.date_written.substring(0, 10) : '';
-            document.getElementById('time_note_edit').value = data.time_written ? data.time_written.substring(0, 8) : '';
-
-            const editModal = new bootstrap.Modal(document.getElementById('editProgressNotesModal'));
-            editModal.show();
-        })
-        .catch(error => console.error('Error:', error));
-}
-
-// Edit Diagnostics
-function editDiagnostic(id) {
-    fetch('?get_diagnostic=' + id + '&patient_id=' + patient_id)
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('diagnostic_id').value = data.id;
-            
-            // Handle study type dropdown and custom study type
-            const studyTypeSelect = document.getElementById('study_type_edit');
-            if (data.study_type && ['X-RAY', 'CT SCAN', 'MRI', 'Ultrasound', 'Nuclear Medicine', 'PET Scan', 'Mammography', 'Fluoroscopy'].includes(data.study_type)) {
-                studyTypeSelect.value = data.study_type;
-                document.getElementById('custom_study_type_edit').style.display = 'none';
-            } else {
-                studyTypeSelect.value = 'other';
-                document.getElementById('custom_study_type_edit').style.display = 'block';
-                document.getElementById('custom_study_type_edit').value = data.study_type || '';
-            }
-            
-            document.getElementById('body_part_region_edit').value = data.body_part_region || '';
-            document.getElementById('study_description_edit').value = data.study_description || '';
-            document.getElementById('clinical_indication_edit').value = data.clinical_indication || '';
-            document.getElementById('image_quality_edit').value = data.image_quality || '';
-            document.getElementById('order_by_edit').value = data.order_by || '';
-            document.getElementById('performed_by_edit').value = data.performed_by || '';
-            document.getElementById('Interpreted_by_edit').value = data.Interpreted_by || '';
-            document.getElementById('Imaging_facility_edit').value = data.Imaging_facility || '';
-            document.getElementById('radiology_findings_edit').value = data.radiology_findings || '';
-            document.getElementById('impression_conclusion_edit').value = data.impression_conclusion || '';
-            document.getElementById('recommendations_edit').value = data.recommendations || '';
-            document.getElementById('date_diagnostic_edit').value = data.date_diagnosed ? data.date_diagnosed.substring(0, 10) : '';
-            
-            new bootstrap.Modal(document.getElementById('editDiagnosticsModal')).show();
-        })
-        .catch(error => console.error('Error:', error));
-}
-
-// Edit Treatment Plans
-function editTreatmentPlan(id) {
-    fetch('?get_treatment_plan=' + id + '&patient_id=' + patient_id)
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('treatment_plan_id').value = data.id;
-            document.getElementById('plan_edit').value = data.plan || '';
-            document.getElementById('intervention_edit').value = data.intervention || '';
-            document.getElementById('problems_edit').value = data.problems || '';
-            document.getElementById('frequency_edit').value = data.frequency || '';
-            document.getElementById('duration_edit').value = data.duration || '';
-            document.getElementById('order_by_tp_edit').value = data.order_by || '';
-            document.getElementById('assigned_to_edit').value = data.assigned_to || '';
-            document.getElementById('date_started_edit').value = data.date_started ? data.date_started.substring(0, 10) : '';
-            document.getElementById('date_ended_edit').value = data.date_ended ? data.date_ended.substring(0, 10) : '';
-            document.getElementById('special_instructions_edit').value = data.special_instructions || '';
-            document.getElementById('patient_education_provided_edit').value = data.patient_education_provided || '';
-            
-            new bootstrap.Modal(document.getElementById('editTreatmentPlansModal')).show();
-        })
-        .catch(error => console.error('Error:', error));
-}
-
-// Edit Lab Results
-function editLab(id) {
-    fetch('?get_lab=' + id + '&patient_id=' + patient_id)
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('lab_id').value = data.id;
-            document.getElementById('test_name_edit').value = data.test_name || '';
-            
-            // Handle test category dropdown and custom category
-            const testCategorySelect = document.getElementById('test_category_edit');
-            if (data.test_category && ['Hematology', 'Chemistry', 'Microbiology', 'Immunology', 'Pathology', 'Genetics', 'Endocrinology'].includes(data.test_category)) {
-                testCategorySelect.value = data.test_category;
-                document.getElementById('custom_category_edit').style.display = 'none';
-            } else {
-                testCategorySelect.value = 'other';
-                document.getElementById('custom_category_edit').style.display = 'block';
-                document.getElementById('custom_category_edit').value = data.test_category || '';
-            }
-            
-            document.getElementById('test_code_edit').value = data.test_code || '';
-            document.getElementById('result_edit').value = data.test_result || '';
-            document.getElementById('result_status_edit').value = data.result_status || '';
-            document.getElementById('units_edit').value = data.units || '';
-            document.getElementById('reference_range_edit').value = data.reference_range || '';
-            document.getElementById('order_by_lab_edit').value = data.order_by || '';
-            document.getElementById('collected_by_edit').value = data.collected_by || '';
-            document.getElementById('laboratory_facility_edit').value = data.laboratory_facility || '';
-            document.getElementById('clinical_interpretation_edit').value = data.clinical_interpretation || '';
-            document.getElementById('date_lab_edit').value = data.date_taken ? data.date_taken.substring(0, 10) : '';
-            
-            new bootstrap.Modal(document.getElementById('editLabResultsModal')).show();
-        })
-        .catch(error => console.error('Error:', error));
-}
-
-// Edit Medical History
-function editMedicalHistory(id) {
-    fetch('?get_medical_history=' + id + '&patient_id=' + patient_id)
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('history_id').value = data.id;
-            document.getElementById('condition_name_edit').value = data.condition_name || '';
-            document.getElementById('status_mh_edit').value = data.status || '';
-            document.getElementById('notes_mh_edit').value = data.notes || '';
-            document.getElementById('date_mh_edit').value = data.date_recorded ? data.date_recorded.substring(0, 10) : '';
-            
-            new bootstrap.Modal(document.getElementById('editMedicalHistoryModal')).show();
-        })
-        .catch(error => console.error('Error:', error));
-}
-
-// Edit Physical Assessment
-function editPhysicalAssessment(id) {
-    fetch('?get_physical_assessment=' + id + '&patient_id=' + patient_id)
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('assessment_id').value = data.id;
-            document.getElementById('assessed_by_edit').value = data.assessed_by || '';
-            document.getElementById('head_and_neck_edit').value = data.head_and_neck || '';
-            document.getElementById('cardiovascular_edit').value = data.cardiovascular || '';
-            document.getElementById('respiratory_edit').value = data.respiratory || '';
-            document.getElementById('abdominal_edit').value = data.abdominal || '';
-            document.getElementById('neurological_edit').value = data.neurological || '';
-            document.getElementById('musculoskeletal_edit').value = data.musculoskeletal || '';
-            document.getElementById('skin_edit').value = data.skin || '';
-            document.getElementById('psychiatric_edit').value = data.psychiatric || '';
-            document.getElementById('date_pa_edit').value = data.date_assessed ? data.date_assessed.substring(0, 10) : '';
-            
-            new bootstrap.Modal(document.getElementById('editPhysicalAssessmentModal')).show();
-        })
-        .catch(error => console.error('Error:', error));
-}
-
-//custom route(medicaitons)
-document.addEventListener('DOMContentLoaded', function() {
-    const routeSelect = document.getElementById('route_select');
-    const customRoute = document.getElementById('custom_route');
-
-    // Function to show/hide text box
-    function toggleCustomRoute() {
-        if (routeSelect.value === 'other') {
-            customRoute.style.display = 'block';
-            customRoute.required = true;
-        } else {
-            customRoute.style.display = 'none';
-            customRoute.required = false;
-            customRoute.value = '';
-        }
-    }
-    // Run on load (so it persists after submit)
-    toggleCustomRoute();
-
-    // Update when selection changes
-    routeSelect.addEventListener('change', toggleCustomRoute);
-
-    // Before form submit: copy custom text into select
-    routeSelect.form.addEventListener('submit', function() {
-        if (routeSelect.value === 'other' && customRoute.value.trim() !== '') {
-            // Create a temporary option to hold custom value
-            let customOption = new Option(customRoute.value.trim(), customRoute.value.trim(), true, true);
-            routeSelect.add(customOption);
-        }
-    });
-});
-
-//flow_custom_rate (medication)
-document.addEventListener('DOMContentLoaded', function() {
-    const flow_rateSelect = document.getElementById('flow_rate');
-    const FlowcustomRoute = document.getElementById('flow_custom_route');
-
-    // Function to show/hide text box
-    function toggleFlowCustomRoute() {
-        if (flow_rateSelect.value === 'other') {
-            FlowcustomRoute.style.display = 'block';
-            FlowcustomRoute.required = true;
-        } else {
-            FlowcustomRoute.style.display = 'none';
-            FlowcustomRoute.required = false;
-            FlowcustomRoute.value = '';
-        }
-    }
-    // Run on load (so it persists after submit)
-    toggleFlowCustomRoute();
-
-    // Update when selection changes
-    flow_rateSelect.addEventListener('change', toggleFlowCustomRoute);
-
-    // Before form submit: copy custom text into select
-    flow_rateSelect.form.addEventListener('submit', function() {
-        if (flow_rateSelect.value === 'other' && FlowcustomRoute.value.trim() !== '') {
-            // Create a temporary option to hold custom value
-            let customOption = new Option(FlowcustomRoute.value.trim(), FlowcustomRoute.value.trim(), true, true);
-            flow_rateSelect.add(customOption);
-        }
-    });
-});
-
-// check the enable IVF(Medications)
-document.getElementById("toggleSwitch").addEventListener("change", function() {
-    const isOn = this.checked;
-    const section = document.getElementById("ivf-section");
-    const fields = document.querySelectorAll(".ivf-field");
-
-    if (isOn) {
-        section.style.display = "block";
-        fields.forEach(f => f.required = true);
-    } else {
-        section.style.display = "none";
-        fields.forEach(f => {
-            f.required = false;
-            f.value = ""; // clear old values
-        });
-    }
-});
-
-// Handle custom route dropdown for medications (edit modal)
-document.addEventListener('DOMContentLoaded', function() {
-    const routeEditSelect = document.getElementById('route_edit_select');
-    if (routeEditSelect) {
-        routeEditSelect.addEventListener('change', function() {
-            const customRouteEdit = document.getElementById('custom_route_edit');
-            if (this.value === 'other') {
-                customRouteEdit.style.display = 'block';
-                customRouteEdit.required = true;
-            } else {
-                customRouteEdit.style.display = 'none';
-                customRouteEdit.required = false;
-                customRouteEdit.value = '';
-            }
-        });
-    }
-    
-    // Handle custom study type dropdown for diagnostics (edit modal)
-    const studyTypeEditSelect = document.getElementById('study_type_edit');
-    if (studyTypeEditSelect) {
-        studyTypeEditSelect.addEventListener('change', function() {
-            const customStudyTypeEdit = document.getElementById('custom_study_type_edit');
-            if (this.value === 'other') {
-                customStudyTypeEdit.style.display = 'block';
-                customStudyTypeEdit.required = true;
-            } else {
-                customStudyTypeEdit.style.display = 'none';
-                customStudyTypeEdit.required = false;
-                customStudyTypeEdit.value = '';
-            }
-        });
-    }
-    
-    // Handle custom test category dropdown for lab results (edit modal)
-    const testCategoryEditSelect = document.getElementById('test_category_edit');
-    if (testCategoryEditSelect) {
-        testCategoryEditSelect.addEventListener('change', function() {
-            const customCategoryEdit = document.getElementById('custom_category_edit');
-            if (this.value === 'other') {
-                customCategoryEdit.style.display = 'block';
-                customCategoryEdit.required = true;
-            } else {
-                customCategoryEdit.style.display = 'none';
-                customCategoryEdit.required = false;
-                customCategoryEdit.value = '';
-            }
-        });
-    }
-});
-
-    // Edit Surgery
     function editSurgery(id) {
         fetch('?get_surgery=' + id + '&patient_id=' + patient_id)
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
+                if (!data || !data.id) { 
+                    alert('Unable to load surgery data'); 
+                    return; 
+                }
                 document.getElementById('surgery_id').value = data.id;
                 document.getElementById('procedure_name_edit').value = data.procedure_name || '';
                 document.getElementById('date_surgery_edit').value = data.date_surgery ? data.date_surgery.substring(0, 10) : '';
@@ -3709,14 +3459,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('complications_edit').value = data.complications || '';
                 new bootstrap.Modal(document.getElementById('editSurgeryModal')).show();
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error loading surgery: ' + error.message);
+            });
     }
 
-    // Edit Allergy
     function editAllergy(id) {
         fetch('?get_allergy=' + id + '&patient_id=' + patient_id)
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
+                if (!data || !data.id) { 
+                    alert('Unable to load allergy data'); 
+                    return; 
+                }
                 document.getElementById('allergy_id').value = data.id;
                 document.getElementById('allergen_edit').value = data.allergen || '';
                 document.getElementById('reaction_edit').value = data.reaction || '';
@@ -3724,14 +3480,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('date_identified_edit').value = data.date_identified ? data.date_identified.substring(0, 10) : '';
                 new bootstrap.Modal(document.getElementById('editAllergyModal')).show();
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error loading allergy: ' + error.message);
+            });
     }
 
-    // Edit Family History
     function editFamilyHistory(id) {
         fetch('?get_family_history=' + id + '&patient_id=' + patient_id)
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
+                if (!data || !data.id) { 
+                    alert('Unable to load family history data'); 
+                    return; 
+                }
                 document.getElementById('family_history_id').value = data.id;
                 document.getElementById('relationship_edit').value = data.relationship || '';
                 document.getElementById('condition_edit').value = data.condition || '';
@@ -3739,98 +3501,439 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('current_status_edit').value = data.current_status || '';
                 new bootstrap.Modal(document.getElementById('editFamilyHistoryModal')).show();
             })
-            .catch(error => console.error('Error:', error));
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error loading family history: ' + error.message);
+            });
     }
-
-    // Edit Lifestyle Info
 
     function editLifestyle(id) {
-
         fetch('?get_lifestyle=' + id + '&patient_id=' + patient_id)
-
-            .then(response => response.json())
-
+            .then(r => r.json())
             .then(data => {
-
+                if (!data || !data.id) { 
+                    alert('Unable to load lifestyle data'); 
+                    return; 
+                }
                 document.getElementById('lifestyle_id').value = data.id;
-
                 document.getElementById('smoking_status_edit').value = data.smoking_status || 'Never';
-
                 document.getElementById('smoking_details_edit').value = data.smoking_details || '';
-
                 document.getElementById('alcohol_use_edit').value = data.alcohol_use || 'None';
-
                 document.getElementById('alcohol_details_edit').value = data.alcohol_details || '';
-
                 document.getElementById('exercise_edit').value = data.exercise || '';
-
                 document.getElementById('diet_edit').value = data.diet || '';
-
                 document.getElementById('recreational_drug_use_edit').value = data.recreational_drug_use || '';
-
                 new bootstrap.Modal(document.getElementById('editLifestyleModal')).show();
-
             })
-
-            .catch(error => console.error('Error:', error));
-
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error loading lifestyle: ' + error.message);
+            });
     }
 
-    // Edit Vitals
-
-    function editVital(id) {
-
+    function editVitals(id) {
         fetch('?get_vital=' + id + '&patient_id=' + patient_id)
-
-            .then(response => response.json())
-
+            .then(r => r.json())
             .then(data => {
-
+                if (!data || !data.id) { 
+                    alert('Unable to load vitals data'); 
+                    return; 
+                }
                 document.getElementById('vital_id').value = data.id;
-
                 document.getElementById('recorded_by_edit').value = data.recorded_by || '';
-
                 document.getElementById('bp_edit').value = data.bp || '';
-
                 document.getElementById('respiratory_rate_edit').value = data.respiratory_rate || '';
-
                 document.getElementById('hr_edit').value = data.hr || '';
-
                 document.getElementById('temp_edit').value = data.temp || '';
-
                 document.getElementById('height_edit').value = data.height || '';
-
                 document.getElementById('weight_edit').value = data.weight || '';
-
                 document.getElementById('oxygen_saturation_edit').value = data.oxygen_saturation || '';
-
                 document.getElementById('pain_scale_edit').value = data.pain_scale || '';
-
                 document.getElementById('date_edit').value = data.date_taken ? data.date_taken.substring(0, 10) : '';
-
                 document.getElementById('general_appearance_edit').value = data.general_appearance || '';
-
                 new bootstrap.Modal(document.getElementById('editVitalsModal')).show();
-
             })
-
-            .catch(error => console.error('Error:', error));
-
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error loading vitals: ' + error.message);
+            });
     }
 
-    // Initialize section on page load
+    function editMedications(id) {
+        fetch('?get_med=' + id + '&patient_id=' + patient_id)
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.id) { 
+                    alert('Unable to load medication data'); 
+                    return; 
+                }
+                document.getElementById('med_id').value = data.id;
+                document.getElementById('medication_edit').value = data.medication || '';
+                document.getElementById('indication_edit').value = data.indication || '';
+                document.getElementById('prescriber_edit').value = data.prescriber || '';
+                document.getElementById('dose_edit').value = data.dose || '';
+                
+                const routeSelect = document.getElementById('route_edit_select');
+                const routeValue = data.route || '';
+                const optionExists = Array.from(routeSelect.options).some(o => o.value === routeValue);
+                
+                if (routeValue && !optionExists) {
+                    routeSelect.value = 'other';
+                    const customRouteEdit = document.getElementById('custom_route_edit');
+                    customRouteEdit.style.display = 'block';
+                    customRouteEdit.required = true;
+                    customRouteEdit.value = routeValue;
+                } else {
+                    routeSelect.value = routeValue;
+                }
+                
+                document.getElementById('status_edit').value = data.status || '';
+                document.getElementById('start_date_edit').value = data.start_date ? data.start_date.substring(0, 10) : '';
+                document.getElementById('notes_edit').value = data.notes || '';
+                document.getElementById('patient_instructions_edit').value = data.patient_instructions || '';
+                document.getElementById('pharmacy_instructions_edit').value = data.pharmacy_instructions || '';
+                new bootstrap.Modal(document.getElementById('editMedicationsModal')).show();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error loading medication: ' + error.message);
+            });
+    }
+
+    function editProgressNotes(id) {
+        fetch('?get_note=' + id + '&patient_id=' + patient_id)
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.id) { 
+                    alert('Unable to load progress note data'); 
+                    return; 
+                }
+                document.getElementById('note_id').value = data.id;
+                document.getElementById('focus_edit').value = data.focus || '';
+                document.getElementById('note_edit').value = data.note || '';
+                document.getElementById('author_edit').value = data.author || '';
+                document.getElementById('date_note_edit').value = data.date_written ? data.date_written.substring(0, 10) : '';
+                document.getElementById('time_note_edit').value = data.time_written || '';
+                new bootstrap.Modal(document.getElementById('editProgressNotesModal')).show();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error loading progress note: ' + error.message);
+            });
+    }
+
+    function editDiagnostics(id) {
+        fetch('?get_diagnostic=' + id + '&patient_id=' + patient_id)
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.id) { 
+                    alert('Unable to load diagnostic data'); 
+                    return; 
+                }
+                document.getElementById('diagnostic_id').value = data.id;
+                
+                const studyTypeSelect = document.getElementById('study_type_edit');
+                const studyTypeValue = data.study_type || '';
+                const studyTypeExists = Array.from(studyTypeSelect.options).some(o => o.value === studyTypeValue);
+                
+                if (studyTypeValue && !studyTypeExists) {
+                    studyTypeSelect.value = 'other';
+                    const customStudyTypeEdit = document.getElementById('custom_study_type_edit');
+                    customStudyTypeEdit.style.display = 'block';
+                    customStudyTypeEdit.required = true;
+                    customStudyTypeEdit.value = studyTypeValue;
+                } else {
+                    studyTypeSelect.value = studyTypeValue;
+                }
+                
+                document.getElementById('body_part_region_edit').value = data.body_part_region || '';
+                document.getElementById('study_description_edit').value = data.study_description || '';
+                document.getElementById('clinical_indication_edit').value = data.clinical_indication || '';
+                document.getElementById('image_quality_edit').value = data.image_quality || '';
+                document.getElementById('order_by_edit').value = data.order_by || '';
+                document.getElementById('performed_by_edit').value = data.performed_by || '';
+                document.getElementById('Interpreted_by_edit').value = data.Interpreted_by || '';
+                document.getElementById('Imaging_facility_edit').value = data.Imaging_facility || '';
+                document.getElementById('radiology_findings_edit').value = data.radiology_findings || '';
+                document.getElementById('impression_conclusion_edit').value = data.impression_conclusion || '';
+                document.getElementById('recommendations_edit').value = data.recommendations || '';
+                document.getElementById('date_diagnostic_edit').value = data.date_diagnosed ? data.date_diagnosed.substring(0, 10) : '';
+                new bootstrap.Modal(document.getElementById('editDiagnosticsModal')).show();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error loading diagnostic: ' + error.message);
+            });
+    }
+
+    function editTreatmentPlans(id) {
+        fetch('?get_treatment_plan=' + id + '&patient_id=' + patient_id)
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.id) { 
+                    alert('Unable to load treatment plan data'); 
+                    return; 
+                }
+                document.getElementById('treatment_plan_id').value = data.id;
+                document.getElementById('plan_edit').value = data.plan || '';
+                document.getElementById('intervention_edit').value = data.intervention || '';
+                document.getElementById('problems_edit').value = data.problems || '';
+                document.getElementById('frequency_edit').value = data.frequency || '';
+                document.getElementById('duration_edit').value = data.duration || '';
+                document.getElementById('order_by_tp_edit').value = data.order_by || '';
+                document.getElementById('assigned_to_edit').value = data.assigned_to || '';
+                document.getElementById('date_started_edit').value = data.date_started ? data.date_started.substring(0, 10) : '';
+                document.getElementById('date_ended_edit').value = data.date_ended ? data.date_ended.substring(0, 10) : '';
+                document.getElementById('special_instructions_edit').value = data.special_instructions || '';
+                document.getElementById('patient_education_provided_edit').value = data.patient_education_provided || '';
+                new bootstrap.Modal(document.getElementById('editTreatmentPlansModal')).show();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error loading treatment plan: ' + error.message);
+            });
+    }
+
+    function editLabResults(id) {
+        fetch('?get_lab=' + id + '&patient_id=' + patient_id)
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.id) { 
+                    alert('Unable to load lab result data'); 
+                    return; 
+                }
+                document.getElementById('lab_id').value = data.id;
+                document.getElementById('test_name_edit').value = data.test_name || '';
+                
+                const testCategorySelect = document.getElementById('test_category_edit');
+                const categoryValue = data.test_category || '';
+                const categoryExists = Array.from(testCategorySelect.options).some(o => o.value === categoryValue);
+                
+                if (categoryValue && !categoryExists) {
+                    testCategorySelect.value = 'other';
+                    const customCategoryEdit = document.getElementById('custom_category_edit');
+                    customCategoryEdit.style.display = 'block';
+                    customCategoryEdit.required = true;
+                    customCategoryEdit.value = categoryValue;
+                } else {
+                    testCategorySelect.value = categoryValue;
+                }
+                
+                document.getElementById('test_code_edit').value = data.test_code || '';
+                document.getElementById('result_edit').value = data.test_result || '';
+                document.getElementById('result_status_edit').value = data.result_status || '';
+                document.getElementById('units_edit').value = data.units || '';
+                document.getElementById('reference_range_edit').value = data.reference_range || '';
+                document.getElementById('order_by_lab_edit').value = data.order_by || '';
+                document.getElementById('collected_by_edit').value = data.collected_by || '';
+                document.getElementById('laboratory_facility_edit').value = data.labarotary_facility || data.laboratory_facility || '';
+                document.getElementById('clinical_interpretation_edit').value = data.clinical_interpretation || '';
+                document.getElementById('date_lab_edit').value = data.date_taken ? data.date_taken.substring(0, 10) : '';
+                new bootstrap.Modal(document.getElementById('editLabResultsModal')).show();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error loading lab result: ' + error.message);
+            });
+    }
+
+    function editMedicalHistory(id) {
+        fetch('?get_medical_history=' + id + '&patient_id=' + patient_id)
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.id) { 
+                    alert('Unable to load medical history data'); 
+                    return; 
+                }
+                document.getElementById('history_id').value = data.id;
+                document.getElementById('condition_name_edit').value = data.condition_name || '';
+                document.getElementById('status_mh_edit').value = data.status || '';
+                document.getElementById('notes_mh_edit').value = data.notes || '';
+                document.getElementById('date_mh_edit').value = data.date_recorded ? data.date_recorded.substring(0, 10) : '';
+                new bootstrap.Modal(document.getElementById('editMedicalHistoryModal')).show();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error loading medical history: ' + error.message);
+            });
+    }
+
+    function editPhysicalAssessment(id) {
+        fetch('?get_physical_assessment=' + id + '&patient_id=' + patient_id)
+            .then(r => r.json())
+            .then(data => {
+                if (!data || !data.id) { 
+                    alert('Unable to load physical assessment data'); 
+                    return; 
+                }
+                document.getElementById('assessment_id').value = data.id;
+                document.getElementById('assessed_by_edit').value = data.assessed_by || '';
+                document.getElementById('head_and_neck_edit').value = data.head_and_neck || '';
+                document.getElementById('cardiovascular_edit').value = data.cardiovascular || '';
+                document.getElementById('respiratory_edit').value = data.respiratory || '';
+                document.getElementById('abdominal_edit').value = data.abdominal || '';
+                document.getElementById('neurological_edit').value = data.neurological || '';
+                document.getElementById('musculoskeletal_edit').value = data.musculoskeletal || '';
+                document.getElementById('skin_edit').value = data.skin || '';
+                document.getElementById('psychiatric_edit').value = data.psychiatric || '';
+                document.getElementById('date_pa_edit').value = data.date_assessed ? data.date_assessed.substring(0, 10) : '';
+                new bootstrap.Modal(document.getElementById('editPhysicalAssessmentModal')).show();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error loading physical assessment: ' + error.message);
+            });
+    }
+
+    // DOMContentLoaded initialization
     document.addEventListener('DOMContentLoaded', function() {
+        // Custom route for medications (ADD form)
+        const routeSelect = document.getElementById('route_select');
+        const customRoute = document.getElementById('custom_route');
+        if (routeSelect && customRoute) {
+            function toggleCustomRoute() {
+                if (routeSelect.value === 'other') {
+                    customRoute.style.display = 'block';
+                    customRoute.required = true;
+                } else {
+                    customRoute.style.display = 'none';
+                    customRoute.required = false;
+                    customRoute.value = '';
+                }
+            }
+            toggleCustomRoute();
+            routeSelect.addEventListener('change', toggleCustomRoute);
+        }
+
+        // Custom route for medications (EDIT form)
+        const routeEditSelect = document.getElementById('route_edit_select');
+        if (routeEditSelect) {
+            routeEditSelect.addEventListener('change', function() {
+                const customRouteEdit = document.getElementById('custom_route_edit');
+                if (this.value === 'other') {
+                    customRouteEdit.style.display = 'block';
+                    customRouteEdit.required = true;
+                } else {
+                    customRouteEdit.style.display = 'none';
+                    customRouteEdit.required = false;
+                    customRouteEdit.value = '';
+                }
+            });
+        }
+
+        // Flow rate handler
+        const flowRateSelect = document.getElementById('flow_rate');
+        const flowCustomRate = document.getElementById('flow_custom_rate');
+        if (flowRateSelect && flowCustomRate) {
+            function toggleFlowCustomRoute() {
+                if (flowRateSelect.value === 'other') {
+                    flowCustomRate.style.display = 'block';
+                    flowCustomRate.required = true;
+                } else {
+                    flowCustomRate.style.display = 'none';
+                    flowCustomRate.required = false;
+                    flowCustomRate.value = '';
+                }
+            }
+            toggleFlowCustomRoute();
+            flowRateSelect.addEventListener('change', toggleFlowCustomRoute);
+        }
+
+        // IVF toggle
+        const toggleSwitch = document.getElementById("toggleSwitch");
+        if (toggleSwitch) {
+            toggleSwitch.addEventListener("change", function() {
+                const isOn = this.checked;
+                const section = document.getElementById("ivf-section");
+                const fields = document.querySelectorAll(".ivf-field");
+                if (isOn) {
+                    section.style.display = "block";
+                    fields.forEach(f => f.required = true);
+                } else {
+                    section.style.display = "none";
+                    fields.forEach(f => {
+                        f.required = false;
+                        f.value = "";
+                    });
+                }
+            });
+        }
+
+        // Study type handlers
+        const studyTypeSelect = document.getElementById('study_type');
+        const customStudyType = document.getElementById('custom_study_type');
+        if (studyTypeSelect && customStudyType) {
+            function toggleCustomStudyType() {
+                if (studyTypeSelect.value === 'other') {
+                    customStudyType.style.display = 'block';
+                    customStudyType.required = true;
+                } else {
+                    customStudyType.style.display = 'none';
+                    customStudyType.required = false;
+                    customStudyType.value = '';
+                }
+            }
+            toggleCustomStudyType();
+            studyTypeSelect.addEventListener('change', toggleCustomStudyType);
+        }
+
+        const studyTypeEditSelect = document.getElementById('study_type_edit');
+        if (studyTypeEditSelect) {
+            studyTypeEditSelect.addEventListener('change', function() {
+                const customStudyTypeEdit = document.getElementById('custom_study_type_edit');
+                if (this.value === 'other') {
+                    customStudyTypeEdit.style.display = 'block';
+                    customStudyTypeEdit.required = true;
+                } else {
+                    customStudyTypeEdit.style.display = 'none';
+                    customStudyTypeEdit.required = false;
+                    customStudyTypeEdit.value = '';
+                }
+            });
+        }
+
+        // Test category handlers
+        const testCategorySelect = document.getElementById('test_category');
+        const customCategory = document.getElementById('custom_category');
+        if (testCategorySelect && customCategory) {
+            function toggleCustomCategory() {
+                if (testCategorySelect.value === 'other') {
+                    customCategory.style.display = 'block';
+                    customCategory.required = true;
+                } else {
+                    customCategory.style.display = 'none';
+                    customCategory.required = false;
+                    customCategory.value = '';
+                }
+            }
+            toggleCustomCategory();
+            testCategorySelect.addEventListener('change', toggleCustomCategory);
+        }
+
+        const testCategoryEditSelect = document.getElementById('test_category_edit');
+        if (testCategoryEditSelect) {
+            testCategoryEditSelect.addEventListener('change', function() {
+                const customCategoryEdit = document.getElementById('custom_category_edit');
+                if (this.value === 'other') {
+                    customCategoryEdit.style.display = 'block';
+                    customCategoryEdit.required = true;
+                } else {
+                    customCategoryEdit.style.display = 'none';
+                    customCategoryEdit.required = false;
+                    customCategoryEdit.value = '';
+                }
+            });
+        }
+
+        // Initialize section
         const urlParams = new URLSearchParams(window.location.search);
         let section = urlParams.get('section') || 'default';
-        
-        // If a form was submitted, stay on the submitted section
         const submittedSection = '<?php echo $submitted_section; ?>';
         if (submittedSection !== '') {
             section = submittedSection;
         }
-        
         showSection(section);
     });
 </script>
 
-<?php include "footer.php"; ?> 
+<?php include "footer.php"; ?>
